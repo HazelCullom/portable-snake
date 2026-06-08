@@ -14,12 +14,8 @@
  *   onScore     {function(score)}
  *   onGameOver  {function(score)}
  *
- * Themes live in themes/*.json and are registered with SnakeGame.registerTheme().
- * To add a custom theme at runtime:
- *   fetch('themes/mytheme.json')
- *     .then(r => r.json())
- *     .then(data => SnakeGame.registerTheme('mytheme', data));
- * Or load themes/index.js before instantiating the game to load all built-in themes.
+ * Themes are defined inline in SnakeGame.THEMES. To add a custom theme at runtime:
+ *   SnakeGame.registerTheme('mytheme', { label: 'My Theme', colors: { ... } });
  *
  * Arena sizes share the same canvas pixel footprint — only grid density changes.
  * Overall canvas size is set by gridSize × cellSize at construction time.
@@ -28,7 +24,7 @@
 class SnakeGame {
   static DEFAULTS = {
     gridSize: 20,
-    speed: 8,
+    speed: 12,
     cellSize: 24,
     arena: 'medium',
     theme: 'dark',
@@ -82,15 +78,15 @@ class SnakeGame {
     trans: {
       label: 'Pride',
       colors: {
-        background:  '#1a1035',
-        grid:        '#241748',
-        snake:       '#55cdfc',
-        snakeHead:   '#f7a8b8',
+        background:  '#55cdfc',
+        grid:        '#3ba4ce',
+        snake:       '#f7a8b8',
+        snakeHead:   '#f36d88',
         food:        '#ffffff',
-        overlay:     'rgba(26, 16, 53, 0.86)',
-        overlayText: '#ffffff',
-        overlayBody: '#a78bcd',
-        wallGlow:    '#f7a8b8',
+        overlay:     'rgba(192, 192, 192, 0.18)',
+        overlayText: '#000000',
+        overlayBody: '#000000ce',
+        wallGlow:    '#ff0e36f6',
       },
     },
     muted: {
@@ -181,6 +177,7 @@ class SnakeGame {
     this._theme     = opts.theme;
     this._speed     = opts.speed;
     this._wallMode  = opts.wallMode ?? 'wrap'; // 'wrap' | 'lethal'
+    this._bigFruit  = opts.bigFruit ?? false;
     this._onScore     = opts.onScore;
     this._onGameOver  = opts.onGameOver;
 
@@ -195,6 +192,7 @@ class SnakeGame {
     this._lastTick  = 0;
     this._stateBeforeSettings = null;
     this._onClickOutside = null;
+    this._highScore = Number(localStorage.getItem('snakeHighScore') ?? 0);
 
     this._buildDOM();
     this._bindEvents();
@@ -247,6 +245,7 @@ class SnakeGame {
     this._colors = { ...SnakeGame.THEMES[key].colors };
     this._syncOverlayColors();
     this._updateGlowEl();
+    this._prerenderGrid();
     this._draw();
     this._settingsPanel.querySelectorAll('.sg-theme-btn').forEach((btn) => {
       btn.classList.toggle('sg-theme-btn--active', btn.dataset.theme === key);
@@ -267,6 +266,7 @@ class SnakeGame {
     this._arena    = arena;
     this._gridSize = SnakeGame.ARENA_GRIDS[arena];
     this._cellSize = Math.round(this._canvasPx / this._gridSize);
+    this._prerenderGrid();
     this._reset();
     this._draw();
     this._settingsPanel.querySelectorAll('.sg-arena-btn').forEach((btn) => {
@@ -286,9 +286,19 @@ class SnakeGame {
     this._canvas.className = 'sg-canvas';
     this._ctx = this._canvas.getContext('2d');
 
+    this._gridCanvas = document.createElement('canvas');
+    this._gridCanvas.width  = this._canvasPx;
+    this._gridCanvas.height = this._canvasPx;
+    this._gridCtx = this._gridCanvas.getContext('2d');
+    this._prerenderGrid();
+
     this._scoreEl = document.createElement('div');
     this._scoreEl.className = 'sg-score';
     this._scoreEl.textContent = '0';
+
+    this._highScoreEl = document.createElement('div');
+    this._highScoreEl.className = 'sg-high-score';
+    this._highScoreEl.textContent = `HI ${this._highScore}`;
 
     this._settingsBtn = document.createElement('button');
     this._settingsBtn.className = 'sg-settings-btn';
@@ -315,6 +325,7 @@ class SnakeGame {
     this._glowEl = document.createElement('div');
     this._glowEl.className = 'sg-glow';
 
+    this._container.appendChild(this._highScoreEl);
     this._container.appendChild(this._scoreEl);
     this._container.appendChild(this._settingsBtn);
     this._container.appendChild(this._canvas);
@@ -324,7 +335,7 @@ class SnakeGame {
 
     this._syncOverlayColors();
     this._updateGlowEl();
-    this._showOverlay('Snake', 'Press Enter or tap to start');
+    this._showOverlay('Snake', 'Press Space or tap to start');
   }
 
   _buildSettingsPanel() {
@@ -354,6 +365,7 @@ class SnakeGame {
       this._makeArenaSelector(),
       this._makeSlider('Speed', 1, 20, this._speed, (v) => { this._speed = v; }),
       this._makeWallToggle(),
+      this._makeBigFruitToggle(),
     ]));
 
     panel.appendChild(this._makeSection('Theme', [this._makeThemeSelector()]));
@@ -476,6 +488,38 @@ class SnakeGame {
     return row;
   }
 
+  _makeBigFruitToggle() {
+    const row = document.createElement('div');
+    row.className = 'sg-settings-row';
+
+    const lbl = document.createElement('label');
+    lbl.className = 'sg-settings-label';
+    lbl.textContent = 'Big fruit';
+
+    const group = document.createElement('div');
+    group.className = 'sg-arena-group';
+
+    ['Off', 'On'].forEach((label) => {
+      const on = label === 'On';
+      const btn = document.createElement('button');
+      btn.className = 'sg-arena-btn';
+      btn.dataset.bigFruit = String(on);
+      btn.textContent = label;
+      if (on === this._bigFruit) btn.classList.add('sg-arena-btn--active');
+      btn.addEventListener('click', () => {
+        this._bigFruit = on;
+        group.querySelectorAll('.sg-arena-btn').forEach((b) => {
+          b.classList.toggle('sg-arena-btn--active', b.dataset.bigFruit === String(on));
+        });
+      });
+      group.appendChild(btn);
+    });
+
+    row.appendChild(lbl);
+    row.appendChild(group);
+    return row;
+  }
+
   _makeThemeSelector() {
     const grid = document.createElement('div');
     grid.className = 'sg-theme-grid';
@@ -552,6 +596,7 @@ class SnakeGame {
     this._arena    = d.arena;
     this._theme    = d.theme;
     this._wallMode = 'wrap';
+    this._bigFruit = false;
 
     this._gridSize = SnakeGame.ARENA_GRIDS[this._arena];
     this._cellSize = Math.round(this._canvasPx / this._gridSize);
@@ -572,6 +617,11 @@ class SnakeGame {
     // Sync wall buttons
     this._settingsPanel.querySelectorAll('[data-wall]').forEach((btn) => {
       btn.classList.toggle('sg-arena-btn--active', btn.dataset.wall === this._wallMode);
+    });
+
+    // Sync big fruit buttons
+    this._settingsPanel.querySelectorAll('[data-big-fruit]').forEach((btn) => {
+      btn.classList.toggle('sg-arena-btn--active', btn.dataset.bigFruit === String(this._bigFruit));
     });
 
     // Sync theme buttons
@@ -643,15 +693,14 @@ class SnakeGame {
       this._stateBeforeSettings = null;
 
       if (prev === 'running') {
-        this._state = 'idle';
-        this._reset();
-        this._showOverlay('Snake', 'Press Enter or tap to start');
+        this._state = 'running';
+        this._loop(performance.now());
       } else if (prev === 'over') {
         this._state = 'over';
-        this._showOverlay('Game Over', `Score: ${this._score}\nPress Enter or tap to restart`);
+        this._showOverlay('Game Over', `Score: ${this._score}\nPress Space or tap to restart`);
       } else {
         this._state = 'idle';
-        this._showOverlay('Snake', 'Press Enter or tap to start');
+        this._showOverlay('Snake', 'Press Space or tap to start');
       }
     };
     panel.addEventListener('animationend', onClose);
@@ -666,9 +715,10 @@ class SnakeGame {
       { x: mid - 1, y: mid },
       { x: mid - 2, y: mid },
     ];
-    this._dir     = { x: 1, y: 0 };
-    this._nextDir = { x: 1, y: 0 };
-    this._score   = 0;
+    this._dir          = { x: 1, y: 0 };
+    this._inputQueue   = [];
+    this._pendingGrowth = 0;
+    this._score        = 0;
     this._scoreEl.textContent = '0';
     this._placeFood();
     this._draw();
@@ -676,14 +726,33 @@ class SnakeGame {
 
   _placeFood() {
     const occupied = new Set(this._snake.map((s) => `${s.x},${s.y}`));
+    const g = this._gridSize;
+
+    // Try big fruit first (~15% chance) if enabled and there's room
+    if (this._bigFruit && Math.random() < 0.15) {
+      const candidates = [];
+      for (let x = 0; x < g - 1; x++) {
+        for (let y = 0; y < g - 1; y++) {
+          if (!occupied.has(`${x},${y}`)   && !occupied.has(`${x+1},${y}`) &&
+              !occupied.has(`${x},${y+1}`) && !occupied.has(`${x+1},${y+1}`)) {
+            candidates.push({ x, y });
+          }
+        }
+      }
+      if (candidates.length > 0) {
+        this._food = { ...candidates[Math.floor(Math.random() * candidates.length)], big: true };
+        return;
+      }
+    }
+
     let pos;
     do {
       pos = {
-        x: Math.floor(Math.random() * this._gridSize),
-        y: Math.floor(Math.random() * this._gridSize),
+        x: Math.floor(Math.random() * g),
+        y: Math.floor(Math.random() * g),
       };
     } while (occupied.has(`${pos.x},${pos.y}`));
-    this._food = pos;
+    this._food = { ...pos, big: false };
   }
 
   // ─── Game Loop ─────────────────────────────────────────────────────────────
@@ -697,7 +766,7 @@ class SnakeGame {
   }
 
   _tick() {
-    this._dir = this._nextDir;
+    if (this._inputQueue.length > 0) this._dir = this._inputQueue.shift();
     const head = this._snake[0];
     const nx = head.x + this._dir.x;
     const ny = head.y + this._dir.y;
@@ -720,11 +789,19 @@ class SnakeGame {
 
     this._snake.unshift(next);
 
-    if (next.x === this._food.x && next.y === this._food.y) {
-      this._score++;
+    const f = this._food;
+    const atFood = f.big
+      ? (next.x === f.x || next.x === f.x + 1) && (next.y === f.y || next.y === f.y + 1)
+      : next.x === f.x && next.y === f.y;
+
+    if (atFood) {
+      this._score += f.big ? 4 : 1;
       this._scoreEl.textContent = this._score;
       this._onScore?.(this._score);
+      if (f.big) this._pendingGrowth += 3;
       this._placeFood();
+    } else if (this._pendingGrowth > 0) {
+      this._pendingGrowth--;
     } else {
       this._snake.pop();
     }
@@ -735,14 +812,22 @@ class SnakeGame {
   _gameOver() {
     this._state = 'over';
     cancelAnimationFrame(this._animFrame);
+    if (this._score > this._highScore) {
+      this._highScore = this._score;
+      localStorage.setItem('snakeHighScore', this._highScore);
+      this._highScoreEl.textContent = `HI ${this._highScore}`;
+    }
     this._onGameOver?.(this._score);
-    this._showOverlay('Game Over', `Score: ${this._score}\nPress Enter or tap to restart`);
+    this._showOverlay('Game Over', `Score: ${this._score}\nPress Space or tap to restart`);
   }
 
   // ─── Input ─────────────────────────────────────────────────────────────────
 
   _handleKey(e) {
-    if (this._state === 'settings') return;
+    if (this._state === 'settings') {
+      if (e.key === 'Escape') this._closeSettings();
+      return;
+    }
 
     const map = {
       ArrowUp:    { x: 0,  y: -1 },
@@ -753,16 +838,20 @@ class SnakeGame {
       a: { x: -1, y: 0 }, d: { x: 1, y: 0 },
     };
 
-    if (e.key === 'Enter') { this._handleOverlayClick(); return; }
+    if (e.key === 'Enter' || e.key === ' ') { this._handleOverlayClick(); return; }
     if (e.key === 'p' || e.key === 'P') {
       this._state === 'running' ? this.pause() : this.resume();
       return;
     }
-    if (e.key === 'Escape') { this._closeSettings(); return; }
+    if (e.key === 'Escape') this._openSettings();
+    
 
     const next = map[e.key];
     if (!next) return;
-    if (next.x !== -this._dir.x || next.y !== -this._dir.y) this._nextDir = next;
+    const last = this._inputQueue.at(-1) ?? this._dir;
+    if (next.x === last.x && next.y === last.y) return;
+    if ((next.x !== -last.x || next.y !== -last.y) && this._inputQueue.length < 3)
+      this._inputQueue.push(next);
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
   }
 
@@ -781,7 +870,9 @@ class SnakeGame {
       const swipe = Math.abs(dx) > Math.abs(dy)
         ? { x: Math.sign(dx), y: 0 }
         : { x: 0, y: Math.sign(dy) };
-      if (swipe.x !== -this._dir.x || swipe.y !== -this._dir.y) this._nextDir = swipe;
+      const last = this._inputQueue.at(-1) ?? this._dir;
+      if ((swipe.x !== -last.x || swipe.y !== -last.y) && this._inputQueue.length < 3)
+        this._inputQueue.push(swipe);
       this._canvas.removeEventListener('touchend', onEnd);
     };
     this._canvas.addEventListener('touchend', onEnd, { passive: true });
@@ -794,28 +885,46 @@ class SnakeGame {
 
   // ─── Rendering ─────────────────────────────────────────────────────────────
 
+  _prerenderGrid() {
+    const ctx = this._gridCtx;
+    const c   = this._cellSize;
+    const g   = this._gridSize;
+    const px  = this._canvasPx;
+
+    ctx.fillStyle = this._colors.background;
+    ctx.fillRect(0, 0, px, px);
+
+    ctx.strokeStyle = this._colors.grid;
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= g; i++) {
+      ctx.beginPath(); ctx.moveTo(i * c, 0);  ctx.lineTo(i * c, px); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,  i * c); ctx.lineTo(px,  i * c); ctx.stroke();
+    }
+  }
+
   _draw() {
     const ctx = this._ctx;
     const c   = this._cellSize;
-    const g   = this._gridSize;
     const col = this._colors;
 
-    ctx.fillStyle = col.background;
-    ctx.fillRect(0, 0, this._canvas.width, this._canvas.height);
+    ctx.drawImage(this._gridCanvas, 0, 0);
 
-    ctx.strokeStyle = col.grid;
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i <= g; i++) {
-      ctx.beginPath(); ctx.moveTo(i * c, 0);     ctx.lineTo(i * c, g * c); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0,     i * c); ctx.lineTo(g * c, i * c); ctx.stroke();
-    }
-
-    const fx = this._food.x * c + c / 2;
-    const fy = this._food.y * c + c / 2;
     ctx.fillStyle = col.food;
-    ctx.beginPath();
-    ctx.arc(fx, fy, c / 2 - 2, 0, Math.PI * 2);
-    ctx.fill();
+    if (this._food.big) {
+      const fx = this._food.x * c + 2;
+      const fy = this._food.y * c + 2;
+      const fw = c * 2 - 4;
+      const r  = Math.min(fw / 3, c / 2);
+      ctx.beginPath();
+      ctx.roundRect(fx, fy, fw, fw, r);
+      ctx.fill();
+    } else {
+      const fx = this._food.x * c + c / 2;
+      const fy = this._food.y * c + c / 2;
+      ctx.beginPath();
+      ctx.arc(fx, fy, c / 2 - 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.fillStyle = col.snake;
     for (let i = 1; i < this._snake.length; i++) {

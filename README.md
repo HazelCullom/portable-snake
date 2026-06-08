@@ -20,8 +20,6 @@ A framework-free, drop-in Snake game for any website. No dependencies, no build 
 | `snake.js` | Self-contained game class |
 | `snake.css` | Companion styles |
 | `index.html` | Live demo |
-| `themes/*.json` | Theme definitions |
-| `themes/index.js` | Async theme loader |
 
 ## Constructor options
 
@@ -33,6 +31,7 @@ const game = new SnakeGame('#snake-game', {
   arena:       'medium', // 'small' | 'medium' | 'large'
   theme:       'dark',   // any registered theme key
   wallMode:    'wrap',   // 'wrap' | 'lethal'
+  bigFruit:    false,    // enable big 2×2 fruit
   onScore:     (score) => console.log(score),
   onGameOver:  (score) => console.log('Game over:', score),
 });
@@ -62,7 +61,7 @@ game.score;      // current score (read-only)
 |-------|--------|
 | Arrow keys / WASD | Move |
 | P | Pause / resume |
-| Enter | Start / restart |
+| Enter / Space | Start / restart |
 | Escape | Close settings |
 
 Swipe gestures are supported on touch screens.
@@ -73,7 +72,8 @@ A gear icon in the top-right corner of the game opens a settings panel with:
 
 - **Arena size** — S / M / L density toggle
 - **Speed** — 1–20 moves per second
-- **Walls** — Wrap (pass through) or Lethal (game over on hit). Lethal mode shows a pulsing hazard glow around the edges, color-matched to the active theme.
+- **Walls** — Wrap (pass through) or Lethal (game over on hit). Lethal mode shows a pulsing hazard glow around the edges.
+- **Big fruit** — when enabled, a 2×2 oversized fruit has a ~15% chance to spawn alongside normal fruit. Eating it scores 4 points and grows the snake by 4 over the next four moves.
 - **Theme** — visual theme picker with mini previews
 
 ## Themes
@@ -93,51 +93,25 @@ Eight themes ship out of the box:
 
 ### Adding a custom theme
 
-**1. Create a JSON file** (e.g. `themes/mytheme.json`):
-
-```json
-{
-  "label": "My Theme",
-  "colors": {
-    "background":  "#0f172a",
-    "grid":        "#1e293b",
-    "snake":       "#4ade80",
-    "snakeHead":   "#16a34a",
-    "food":        "#f87171",
-    "overlay":     "rgba(15, 23, 42, 0.82)",
-    "overlayText": "#f8fafc",
-    "overlayBody": "#94a3b8",
-    "wallGlow":    "#ef4444"
-  }
-}
-```
-
-**2. Register it** — either in `themes/index.js`:
+Call `SnakeGame.registerTheme()` before (or after) instantiating the game:
 
 ```js
-{ key: 'mytheme', url: 'themes/mytheme.json' },
-```
+SnakeGame.registerTheme('mytheme', {
+  label: 'My Theme',
+  colors: {
+    background:  '#0f172a',
+    grid:        '#1e293b',
+    snake:       '#4ade80',
+    snakeHead:   '#16a34a',
+    food:        '#f87171',
+    overlay:     'rgba(15, 23, 42, 0.82)',
+    overlayText: '#f8fafc',
+    overlayBody: '#94a3b8',
+    wallGlow:    '#ef4444',
+  },
+});
 
-Or at runtime:
-
-```js
-fetch('themes/mytheme.json')
-  .then(r => r.json())
-  .then(data => SnakeGame.registerTheme('mytheme', data));
-```
-
-### Loading themes from files
-
-Include `themes/index.js` and await `SnakeThemesReady` before creating the game to have the JSON files take precedence over the built-in defaults:
-
-```html
-<script src="snake.js"></script>
-<script src="themes/index.js"></script>
-<script>
-  SnakeThemesReady.then(() => {
-    const game = new SnakeGame('#snake-game', { theme: 'mytheme' });
-  });
-</script>
+const game = new SnakeGame('#snake-game', { theme: 'mytheme' });
 ```
 
 ## License

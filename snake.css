@@ -18,10 +18,23 @@
 .sg-score {
   position: absolute;
   top: 8px;
-  right: 40px;
+  left: 8px;
   color: #f8fafc;
   font-size: 1.1rem;
   font-weight: 600;
+  pointer-events: none;
+  z-index: 1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.sg-high-score {
+  position: absolute;
+  top: 30px;
+  left: 8px;
+  color: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.5;
   pointer-events: none;
   z-index: 1;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
