@@ -1,0 +1,14 @@
+{
+  "label": "Muted",
+  "colors": {
+    "background":  "#2a2825",
+    "grid":        "#35322e",
+    "snake":       "#7d7468",
+    "snakeHead":   "#5c564e",
+    "food":        "#b09a7e",
+    "overlay":     "rgba(30, 28, 25, 0.85)",
+    "overlayText": "#d4c9ba",
+    "overlayBody": "#7a7068",
+    "wallGlow":    "#c4935a"
+  }
+}

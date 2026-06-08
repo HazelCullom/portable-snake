@@ -1,0 +1,14 @@
+{
+  "label": "Light",
+  "colors": {
+    "background":  "#f1f5f9",
+    "grid":        "#e2e8f0",
+    "snake":       "#475569",
+    "snakeHead":   "#0f172a",
+    "food":        "#dc2626",
+    "overlay":     "rgba(241, 245, 249, 0.88)",
+    "overlayText": "#0f172a",
+    "overlayBody": "#64748b",
+    "wallGlow":    "#f97316"
+  }
+}
