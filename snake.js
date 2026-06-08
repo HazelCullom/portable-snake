@@ -28,7 +28,10 @@ class SnakeGame {
     cellSize: 24,
     arena: 'medium',
     theme: 'dark',
+    bigFruit: false,
   };
+
+  static BIG_FRUIT_CHANCE = 0.15;
 
   static ARENA_GRIDS = { small: 15, medium: 20, large: 30 };
 
@@ -171,13 +174,14 @@ class SnakeGame {
       throw new Error(`SnakeGame: container "${container}" not found`);
     }
 
-    const opts = { ...SnakeGame.DEFAULTS, ...options };
+    const saved = JSON.parse(localStorage.getItem('snakeSettings') ?? 'null') ?? {};
+    const opts = { ...SnakeGame.DEFAULTS, ...saved, ...options };
     this._canvasPx  = opts.gridSize * opts.cellSize;
     this._arena     = opts.arena;
     this._theme     = opts.theme;
     this._speed     = opts.speed;
     this._wallMode  = opts.wallMode ?? 'wrap'; // 'wrap' | 'lethal'
-    this._bigFruit  = opts.bigFruit ?? false;
+    this._bigFruit  = opts.bigFruit ?? SnakeGame.DEFAULTS.bigFruit;
     this._onScore     = opts.onScore;
     this._onGameOver  = opts.onGameOver;
 
@@ -240,6 +244,16 @@ class SnakeGame {
     this._glowEl.style.setProperty('--sg-glow-color', this._colors.wallGlow);
   }
 
+  _saveSettings() {
+    localStorage.setItem('snakeSettings', JSON.stringify({
+      theme:    this._theme,
+      speed:    this._speed,
+      arena:    this._arena,
+      wallMode: this._wallMode,
+      bigFruit: this._bigFruit,
+    }));
+  }
+
   _applyTheme(key) {
     this._theme  = key;
     this._colors = { ...SnakeGame.THEMES[key].colors };
@@ -250,6 +264,7 @@ class SnakeGame {
     this._settingsPanel.querySelectorAll('.sg-theme-btn').forEach((btn) => {
       btn.classList.toggle('sg-theme-btn--active', btn.dataset.theme === key);
     });
+    this._saveSettings();
   }
 
   _syncOverlayColors() {
@@ -272,6 +287,7 @@ class SnakeGame {
     this._settingsPanel.querySelectorAll('.sg-arena-btn').forEach((btn) => {
       btn.classList.toggle('sg-arena-btn--active', btn.dataset.arena === arena);
     });
+    this._saveSettings();
   }
 
   // ─── DOM ───────────────────────────────────────────────────────────────────
@@ -444,6 +460,7 @@ class SnakeGame {
     slider.addEventListener('input', () => {
       val.textContent = slider.value;
       onChange(Number(slider.value));
+      this._saveSettings();
     });
 
     const right = document.createElement('div');
@@ -479,6 +496,7 @@ class SnakeGame {
           b.classList.toggle('sg-arena-btn--active', b.dataset.wall === mode);
         });
         this._updateGlowEl();
+        this._saveSettings();
       });
       group.appendChild(btn);
     });
@@ -511,6 +529,7 @@ class SnakeGame {
         group.querySelectorAll('.sg-arena-btn').forEach((b) => {
           b.classList.toggle('sg-arena-btn--active', b.dataset.bigFruit === String(on));
         });
+        this._saveSettings();
       });
       group.appendChild(btn);
     });
@@ -596,7 +615,7 @@ class SnakeGame {
     this._arena    = d.arena;
     this._theme    = d.theme;
     this._wallMode = 'wrap';
-    this._bigFruit = false;
+    this._bigFruit = SnakeGame.DEFAULTS.bigFruit;
 
     this._gridSize = SnakeGame.ARENA_GRIDS[this._arena];
     this._cellSize = Math.round(this._canvasPx / this._gridSize);
@@ -631,6 +650,7 @@ class SnakeGame {
 
     this._syncOverlayColors();
     this._updateGlowEl();
+    this._saveSettings();
     this._reset();
     this._draw();
   }
@@ -729,7 +749,7 @@ class SnakeGame {
     const g = this._gridSize;
 
     // Try big fruit first (~15% chance) if enabled and there's room
-    if (this._bigFruit && Math.random() < 0.15) {
+    if (this._bigFruit && Math.random() < SnakeGame.BIG_FRUIT_CHANCE) {
       const candidates = [];
       for (let x = 0; x < g - 1; x++) {
         for (let y = 0; y < g - 1; y++) {
