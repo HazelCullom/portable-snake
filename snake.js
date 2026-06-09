@@ -273,6 +273,7 @@ class SnakeGame {
     this._overlayTitle.style.color    = c.overlayText;
     this._overlayBody.style.color     = c.overlayBody;
     this._scoreEl.style.color         = c.overlayText;
+    this._highScoreEl.style.color     = c.overlayText;
   }
 
   // ─── Arena ─────────────────────────────────────────────────────────────────
@@ -377,14 +378,18 @@ class SnakeGame {
     header.appendChild(closeBtn);
     panel.appendChild(header);
 
-    panel.appendChild(this._makeSection('Gameplay', [
+    const body = document.createElement('div');
+    body.className = 'sg-settings-body';
+
+    body.appendChild(this._makeSection('Gameplay', [
       this._makeArenaSelector(),
       this._makeSlider('Speed', 1, 20, this._speed, (v) => { this._speed = v; }),
       this._makeWallToggle(),
       this._makeBigFruitToggle(),
     ]));
 
-    panel.appendChild(this._makeSection('Theme', [this._makeThemeSelector()]));
+    body.appendChild(this._makeSection('Theme', [this._makeThemeSelector()]));
+    panel.appendChild(body);
 
     const footer = document.createElement('div');
     footer.className = 'sg-settings-footer';
